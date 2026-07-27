@@ -1,4 +1,4 @@
-package com.satech.ourluxuryhotel.dto;
+package com.satech.ourluxuryhotel.dto.response;
 
 
 import com.fasterxml.jackson.annotation.JsonInclude;

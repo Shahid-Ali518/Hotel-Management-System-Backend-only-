@@ -1,6 +1,7 @@
 package com.satech.ourluxuryhotel.service.interfac;
 
-import com.satech.ourluxuryhotel.dto.Response;
+import com.satech.ourluxuryhotel.dto.response.Response;
+import com.satech.ourluxuryhotel.dto.response.RoomDTO;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
@@ -9,21 +10,18 @@ import java.util.List;
 public interface IRoomService {
 
 
-    Response addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice);
+    Response<RoomDTO> addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice);
 
-    Response getAllRooms();
+    Response<List<RoomDTO>> getAllRooms();
 
-    List<String> getAllRoomTypes();
+    Response<List<String>> getAllRoomTypes();
 
-    Response deleteRoom(Long roomId);
+    Response<RoomDTO> deleteRoom(Long roomId);
 
-    Response updateRoom(Long roomId, MultipartFile photo, String roomType, String description, Double roomPrice );
+    Response<RoomDTO> updateRoom(Long roomId, MultipartFile photo, String roomType, String description, Double roomPrice );
 
-    Response getRoomById(Long roomId);
+    Response<RoomDTO> getRoomById(Long roomId);
 
-    Response getAvailableRoomsByDateAndType(LocalDate checkInDate, LocalDate checkOutDate, String roomType);
-
-    Response getAvailableRooms();
-
+    Response<List<RoomDTO>> getAvailableRoomsByDateAndType(LocalDate checkInDate, LocalDate checkOutDate, String roomType);
 
 }

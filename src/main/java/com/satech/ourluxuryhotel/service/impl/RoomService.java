@@ -2,10 +2,8 @@ package com.satech.ourluxuryhotel.service.impl;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
-import com.satech.ourluxuryhotel.dto.BookingDTO;
-import com.satech.ourluxuryhotel.dto.Response;
-import com.satech.ourluxuryhotel.dto.RoomDTO;
-import com.satech.ourluxuryhotel.entity.Booking;
+import com.satech.ourluxuryhotel.dto.response.Response;
+import com.satech.ourluxuryhotel.dto.response.RoomDTO;
 import com.satech.ourluxuryhotel.entity.Room;
 import com.satech.ourluxuryhotel.exception.AppException;
 import com.satech.ourluxuryhotel.repository.RoomRepository;
@@ -16,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.validation.ObjectError;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
@@ -38,9 +35,10 @@ public class RoomService implements IRoomService {
 
 
     @Override
-    public Response addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice) {
+    public Response<RoomDTO> addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice) {
 
-        Response response = new Response();
+        Response<RoomDTO> response = new Response<>();
+
         try{
             Room room = new Room();
 
@@ -62,32 +60,34 @@ public class RoomService implements IRoomService {
             Room savedRoom = roomRepository.save(room);
             RoomDTO
                     roomDTO = Utils.mapRoomEntityToRoomDTO(savedRoom);
-            response.setRoom(roomDTO);
+            response.setData(roomDTO);
             response.setStatusCode(201);
             response.setMessage("Successful");
 
         }
         catch (AppException ap){
             response.setStatusCode(400); // bad request
+            response.setData(null);
             log.error(ap.getMessage());
         }
         catch (Exception e){
             response.setStatusCode(500); // internal server error
             log.error("Error occurred while adding a new room");
+            response.setData(null);
             System.out.println(e.getMessage());
         }
         return response;
     }
 
     @Override
-    public Response getAllRooms() {
+    public Response<List<RoomDTO>> getAllRooms() {
 
-        Response response = new Response();
+        Response<List<RoomDTO>> response = new Response<>();
 
         try{
             List<Room> rooms = roomRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
             List<RoomDTO> roomDTOList = Utils.mapRoomListEntityToRoomListDTO(rooms);
-            response.setRoomList(roomDTOList);
+            response.setData(roomDTOList);
             response.setStatusCode(200);
             response.setMessage("Successful");
 
@@ -104,15 +104,19 @@ public class RoomService implements IRoomService {
     }
 
     @Override
-    public List<String> getAllRoomTypes() {
-        return roomRepository.findDistinctRoomTypes();
+    public Response<List<String>> getAllRoomTypes() {
+        return Response.<List<String>>builder()
+                .statusCode(200)
+                .message("Success")
+                .data(roomRepository.findDistinctRoomTypes())
+                .build();
     }
 
 
     @Override
-    public Response deleteRoom(Long roomId) {
+    public Response<RoomDTO> deleteRoom(Long roomId) {
 
-        Response response = new Response();
+        Response<RoomDTO> response = new Response<>();
 
         try{
             Room room = roomRepository.findById(roomId).orElseThrow(() -> new AppException("Room not found"));
@@ -124,6 +128,7 @@ public class RoomService implements IRoomService {
             roomRepository.deleteById(roomId);
             response.setStatusCode(200);
             response.setMessage("Successful");
+            response.setData(Utils.mapRoomEntityToRoomDTO(room));
 
         }
         catch (AppException ap){
@@ -139,21 +144,19 @@ public class RoomService implements IRoomService {
     }
 
     @Override
-    public Response updateRoom(Long roomId, MultipartFile photo, String roomType, String description, Double roomPrice) {
-        Response response = new Response();
+    public Response<RoomDTO> updateRoom(Long roomId, MultipartFile photo, String roomType, String description, Double roomPrice) {
+        Response<RoomDTO> response = new Response<>();
 
         try{
             Room room = roomRepository.findById(roomId).orElseThrow( () -> new AppException("Room Not Found"));
 
             if(photo != null && photo.isEmpty()){
                 Map<String, Object> fileInfo = uploadImageService.uploadImage(photo, "rooms");
-//                imageName = photo.getOriginalFilename();
-//                imageData = photo.getBytes();
+
                 String imageUrl = fileInfo.get("secure_url").toString();
                 String imageId = fileInfo.get("public_id").toString();
                 room.setImageUrl(imageUrl);
                 room.setImageId(imageId);
-//                room.setImageData(imageData);
 
             }
             if(description!= null)
@@ -165,7 +168,7 @@ public class RoomService implements IRoomService {
 
             Room updatedRoom = roomRepository.save(room);
             RoomDTO roomDTO = Utils.mapRoomEntityToRoomDTO(updatedRoom);
-            response.setRoom(roomDTO);
+            response.setData(roomDTO);
             response.setStatusCode(201);
             response.setMessage("Successful");
 
@@ -182,14 +185,14 @@ public class RoomService implements IRoomService {
     }
 
     @Override
-    public Response getRoomById(Long roomId) {
-        Response response = new Response();
+    public Response<RoomDTO> getRoomById(Long roomId) {
+        Response<RoomDTO> response = new Response<>();
         try{
             Room room = roomRepository.findById(roomId).orElseThrow(() -> new AppException("Room not found"));
             RoomDTO roomDTO = Utils.mapRoomEntityToRoomDTO(room);
 //            Booking booking = room.getBooking();
 //            BookingDTO bookingDTO = Utils.mapBookingEntityToBookingDTO(booking);
-            response.setRoom(roomDTO);
+            response.setData(roomDTO);
 //            response.setBooking(bookingDTO);
             response.setStatusCode(200);
             response.setMessage("Successful");
@@ -208,12 +211,12 @@ public class RoomService implements IRoomService {
     }
 
     @Override
-    public Response getAvailableRoomsByDateAndType(LocalDate checkInDate, LocalDate checkOutDate, String roomType) {
-        Response response = new Response();
+    public Response<List<RoomDTO>> getAvailableRoomsByDateAndType(LocalDate checkInDate, LocalDate checkOutDate, String roomType) {
+        Response<List<RoomDTO>>  response = new Response<>();
         try{
             List<Room> rooms = roomRepository.getAvailableRoomsByDatesAndTypes(checkInDate, checkOutDate, roomType);
                 List<RoomDTO> roomDTOList = Utils.mapRoomListEntityToRoomListDTO(rooms);
-                response.setRoomList(roomDTOList);
+                response.setData(roomDTOList);
                 response.setStatusCode(200);
                 response.setMessage("Successful");
                 System.out.println("here room service");
@@ -226,28 +229,6 @@ public class RoomService implements IRoomService {
         catch (Exception e){
             response.setStatusCode(500); // internal server error
             log.error("Error occurred while getting rooms");
-        }
-        return response;
-    }
-
-    @Override
-    public Response getAvailableRooms() {
-        Response response = new Response();
-        try{
-            List<Room> rooms = roomRepository.getAvailableRooms();
-            List<RoomDTO> roomDTOList = Utils.mapRoomListEntityToRoomListDTO(rooms);
-            response.setRoomList(roomDTOList);
-            response.setStatusCode(200);
-            response.setMessage("Successful");
-
-        }
-        catch (AppException ap){
-            response.setStatusCode(404); // not found
-            log.error(ap.getMessage());
-        }
-        catch (Exception e){
-            response.setStatusCode(500); // internal server error
-            log.error("Error occurred while getting available rooms");
         }
         return response;
     }

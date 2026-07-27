@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -18,7 +19,7 @@ import java.util.Set;
 @Entity
 @Table(name = "booking")
 @Data
-
+@Builder
 public class Booking {
 
     @Id
@@ -30,8 +31,6 @@ public class Booking {
 
     @NotNull(message = "check out date is required")
     private LocalDate checkOutDate;
-
-    private Integer capacity;
 
     private Integer numOfGuests;
 
@@ -46,11 +45,12 @@ public class Booking {
 
     private LocalDateTime updatedAt;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = true)
     private User user;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 
 

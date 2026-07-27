@@ -1,4 +1,4 @@
-package com.satech.ourluxuryhotel.configration;
+package com.satech.ourluxuryhotel.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

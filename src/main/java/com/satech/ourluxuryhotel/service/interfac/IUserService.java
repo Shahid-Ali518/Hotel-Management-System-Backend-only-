@@ -1,24 +1,28 @@
 package com.satech.ourluxuryhotel.service.interfac;
 
-import com.satech.ourluxuryhotel.dto.LoginRequest;
-import com.satech.ourluxuryhotel.dto.Response;
+import com.satech.ourluxuryhotel.dto.request.CreateUserRequest;
+import com.satech.ourluxuryhotel.dto.request.LoginRequest;
+import com.satech.ourluxuryhotel.dto.response.Response;
+import com.satech.ourluxuryhotel.dto.response.UserDTO;
 import com.satech.ourluxuryhotel.entity.User;
+
+import java.util.List;
 
 public interface IUserService {
 
-    Response register(User user);
+    Response<UserDTO> register(CreateUserRequest user);
 
-    Response login(LoginRequest loginRequest);
+    Response<UserDTO> login(LoginRequest loginRequest);
 
-    Response getAllUsers();
+    Response<List<UserDTO>> getAllUsers();
 
-    Response getUserBookingHistory(String userId);
+    Response<UserDTO> getUserBookingHistory(String userId);
 
-    Response getUserById(String userId);
+    Response<UserDTO> getUserById(String userId);
 
-    Response deleteUser(String userId);
+    Response<UserDTO> deleteUser(String userId);
 
-    Response getMyInfo(String email);
+    Response<UserDTO> getMyInfo(String email);
 
 
 

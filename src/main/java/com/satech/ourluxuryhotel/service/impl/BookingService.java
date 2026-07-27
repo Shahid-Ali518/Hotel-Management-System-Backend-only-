@@ -1,10 +1,9 @@
 package com.satech.ourluxuryhotel.service.impl;
 
-import com.satech.ourluxuryhotel.dto.BookingDTO;
-import com.satech.ourluxuryhotel.dto.Response;
-import com.satech.ourluxuryhotel.dto.RoomDTO;
-import com.satech.ourluxuryhotel.dto.UserDTO;
+import com.satech.ourluxuryhotel.dto.request.CreateBookingRequest;
+import com.satech.ourluxuryhotel.dto.response.*;
 import com.satech.ourluxuryhotel.entity.Booking;
+import com.satech.ourluxuryhotel.entity.BookingStatus;
 import com.satech.ourluxuryhotel.entity.Room;
 import com.satech.ourluxuryhotel.entity.User;
 import com.satech.ourluxuryhotel.exception.AppException;
@@ -19,7 +18,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -38,12 +38,18 @@ public class BookingService implements IBookingService {
 
     // to get all bookings
     @Override
-    public Response getAllBookings() {
-        Response response = new Response();
+    public Response<List<BookingDTO>>  getAllBookings() {
+
+        Response<List<BookingDTO>> response = Response.<List<BookingDTO>>builder()
+                .statusCode(200)
+                .message("Success")
+                .data(null)
+                .build();
+
         try{
             List<Booking> bookings = bookingRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
             List<BookingDTO> bookingDTOList = Utils.mapBookingListEntityToBookingListDTO(bookings);
-            response.setBookingList(bookingDTOList);
+            response.setData(bookingDTOList);
             response.setMessage("successful");
             response.setStatusCode(200);
         }
@@ -53,185 +59,380 @@ public class BookingService implements IBookingService {
         }
         catch (Exception e){
             response.setStatusCode(500); // internal server error
-            log.error("Error occurred while getting all bookings");
+            log.error("Error occurred while getting all bookings{} ", e.getMessage());
         }
         return response;
     }
 
     @Override
-    public Response saveBooking(Long userId, Long roomId, Booking bookingRequest) {
-        Response response = new Response();
-        try{
-            if(bookingRequest.getCheckOutDate().isBefore(bookingRequest.getCheckInDate())){
-                response.setMessage("Check in date must before check out date");
-                throw new IllegalArgumentException("Check in date must before check out date");
+    @Transactional
+    public Response<BookingDTO> createBooking(CreateBookingRequest request) {
+
+
+
+        try {
+
+            Room room = roomRepository.findById(request.getRoomId())
+                    .orElseThrow(() -> new AppException("Room not found"));
+
+            User user = userRepository.findById(request.getUserId())
+                    .orElseThrow(() -> new AppException("User not found"));
+
+            // Validate booking request
+            Response<BookingValidationResult> validationResponse = validateBooking(request, room, user);
+
+            if (!validationResponse.getData().isValid()) {
+                return Response.<BookingDTO>builder()
+                        .statusCode(validationResponse.getStatusCode())
+                        .message(validationResponse.getData().getMessage())
+                        .data(null)
+                        .build();
             }
-            Room room = roomRepository.findById(roomId).orElseThrow( () -> new AppException("Room not found"));
-            User user = userRepository.findById(userId).orElseThrow( () -> new AppException("User not found"));
 
-            Booking existingBooking = room.getBooking();
-            System.out.println(existingBooking);
-            if(existingBooking == null){
-                room.setBooking(bookingRequest);
-            }
-            else {
-                if(!isRoomAvailable(bookingRequest, existingBooking)){
-                    response.setMessage("Room is not available in selected time range");
-                    throw new AppException("Room is not available in selected time range");
-                }
-            }
+            String confirmationCode = Utils.generateRandomConfirmationCode(10);
 
+            Booking booking = Booking.builder()
+                    .bookingConfirmationCode(confirmationCode)
+                    .checkInDate(request.getCheckIn())
+                    .checkOutDate(request.getCheckOut())
+                    .numOfGuests(request.getNumOfGuests())
+                    .status(BookingStatus.CONFIRMED)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .room(room)
+                    .user(user)
+                    .build();
 
-            bookingRequest.setUser(user);
+            Booking savedBooking = bookingRepository.save(booking);
 
-            bookingRequest.getRooms().add(room);
-            String bookingConfirmationCode = Utils.generateRandomConfirmationCode(10);
-            bookingRequest.setBookingConfirmationCode(bookingConfirmationCode);
-            bookingRepository.save(bookingRequest);
+            BookingDTO bookingDTO = Utils.mapBookingEntityToBookingDTO(savedBooking);
 
-            response.setMessage("successful");
-            response.setStatusCode(200);
-            response.setConfirmationCode(bookingConfirmationCode);
+            return Response.<BookingDTO>builder()
+                    .statusCode(201)
+                    .message("Booking created successfully.")
+                    .confirmationCode(confirmationCode)
+                    .data(bookingDTO)
+                    .build();
+
+        } catch (AppException ex) {
+
+            log.error(ex.getMessage());
+
+            return Response.<BookingDTO>builder()
+                    .statusCode(404)
+                    .message(ex.getMessage())
+                    .data(null)
+                    .build();
+
+        } catch (Exception ex) {
+
+            log.error("Error creating booking", ex);
+
+            return Response.<BookingDTO>builder()
+                    .statusCode(500)
+                    .message("Internal server error while creating booking.")
+                    .data(null)
+                    .build();
         }
-        catch (AppException ap){
-            response.setStatusCode(400); // bad request
-            response.setMessage("Room is not available in selected time range");
-            log.error(ap.getMessage());
-        }
-        catch (Exception e){
-            response.setStatusCode(500); // internal server error
-            response.setMessage("Internal Error occurred while saving a new booking");
-            log.error("Error occurred while saving a new booking");
-            System.out.println(e.getMessage());
-        }
-        return response;
     }
 
-    @Override
-    public Response findBookingsByRoomId(Long roomId) {
-        Response response = new Response();
-        try{
-            Room room = roomRepository.findById(roomId).orElseThrow(()-> new AppException("Room does not found"));
-            List<Booking> bookingList = bookingRepository.findBookingByRoomId(roomId);
-            if(bookingList != null && !bookingList.isEmpty()){
-                List<BookingDTO> bookingDTOList = Utils.mapBookingListEntityToBookingListDTO(bookingList);
-                response.setBookingList(bookingDTOList);
-                response.setMessage("successful");
-                response.setStatusCode(200);
-            }
-        }
-        catch (AppException ap){
-            response.setStatusCode(404); // not found request
-            log.error(ap.getMessage());
-        }
-        catch (Exception e){
-            response.setStatusCode(500); // internal server error
-            log.error("Error occurred while loading bookings by roomId");
-        }
-        return response;
-    }
 
 
     @Override
-    public Response findBookingsByConfirmationCode(String bookingConfirmationCode) {
-        Response response = new Response();
+    public Response<BookingDTO> getBookingByConfirmationCode(String bookingConfirmationCode) {
+        Response<BookingDTO> response = Response.<BookingDTO>builder()
+                .statusCode(200)
+                .message("Success")
+                .data(null)
+                .build();
         try{
             Booking booking = bookingRepository.findBookingByBookingConfirmationCode(bookingConfirmationCode).orElseThrow(()-> new AppException("Booking not found"));
 
-            BookingDTO bookingDTO = Utils.mapBookingEntityToBookingDTOPlusBookedRooms(booking, true);
-//            User user = booking.getUser();
-//            UserDTO userDTO = Utils.mapUserEntityToUserDTO(user);
-//            response.setUser(userDTO);
-            response.setBooking(bookingDTO);
+            BookingDTO bookingDTO = Utils.mapBookingEntityToBookingDTOPlusBookedRoom(booking, true);
+            response.setData(bookingDTO);
             response.setMessage("successful");
             response.setStatusCode(200);
         }
         catch (AppException ap){
             response.setStatusCode(404); // not found request
             log.error(ap.getMessage());
+            response.setData(null);
         }
         catch (Exception e){
             response.setStatusCode(500); // internal server error
             log.error("Error occurred while getting booking via code");
+            response.setData(null);
         }
         return response;
     }
 
     @Override
-    public Response findBookingsByUserId(Long userId) {
-        Response response = new Response();
+    public Response<List<BookingDTO>>  getBookingsByUser(Long userId) {
+        Response<List<BookingDTO>> response = Response.<List<BookingDTO>>builder()
+                .statusCode(200)
+                .message("Success")
+                .data(null)
+                .build();
         try{
 
             User user = userRepository.findById(userId).orElseThrow(()-> new AppException("User does not found"));
-//            UserDTO userDTO = Utils.mapUserEntityToUserDTO(user);
+
             List<Booking> bookingList = bookingRepository.findBookingByUserId(userId);
             if(bookingList != null && !bookingList.isEmpty()){
-//                List<BookingDTO> bookingDTOList = Utils.mapBookingListEntityToBookingListDTO(bookingList);
-                UserDTO userDTO = Utils.mapUserEntityToUserDTOPlusBooking(user);
-//                response.setBookingList(bookingDTOList);
-                response.setUser(userDTO);
+                List<BookingDTO> bookingDTOList = Utils.mapBookingListEntityToBookingListDTO(bookingList);
+                response.setData(bookingDTOList);
                 response.setMessage("successful");
                 response.setStatusCode(200);
             }
         }
         catch (AppException ap){
             response.setStatusCode(404); // not found request
+            response.setData(null);
             log.error(ap.getMessage());
+
         }
         catch (Exception e){
             response.setStatusCode(500); // internal server error
+            response.setData(null);
             log.error("Error occurred while loading bookings by userId");
         }
         return response;
     }
 
     @Override
-    public Response findBookingById(Long bookingId) {
-        return null;
-    }
-
-    @Override
-    @Transactional
-    public Response cancelBooking(Long bookingId) {
-        Response response = new Response();
+    public Response<BookingDTO> findBookingById(Long bookingId) {
+        Response<BookingDTO> response = Response.<BookingDTO>builder()
+                .statusCode(200)
+                .message("Success")
+                .data(null)
+                .build();
         try{
-            Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException("Booking does not exist"));
-            System.out.println(booking);
-            booking.getRooms().forEach(room -> room.setBooking(null));
-            booking.getRooms().clear();
-            booking.setUser(null);
+            Booking booking = bookingRepository.findById(bookingId).orElseThrow(()-> new AppException("Booking not found"));
 
-//            bookingRepository.saveAndFlush(booking);
-
-            bookingRepository.deleteById(bookingId);
-            bookingRepository.flush();
-            response.setMessage("Booking of Id " + bookingId + " is deleted successfully!");
+            BookingDTO bookingDTO = Utils.mapBookingEntityToBookingDTOPlusBookedRoom(booking, true);
+            response.setData(bookingDTO);
+            response.setMessage("successful");
             response.setStatusCode(200);
         }
         catch (AppException ap){
             response.setStatusCode(404); // not found request
             log.error(ap.getMessage());
+            response.setData(null);
         }
         catch (Exception e){
             response.setStatusCode(500); // internal server error
-            log.error("Error occurred while canceling booking ");
-            throw e;
+            log.error("Error occurred while getting booking with Id:{} ", bookingId );
+            response.setData(null);
         }
         return response;
     }
 
+    @Override
+    @Transactional
+    public Response<BookingDTO> cancelBooking(Long bookingId) {
+        Response<BookingDTO> response = Response.<BookingDTO>builder()
+                .statusCode(200)
+                .message("Success")
+                .data(null)
+                .build();
+        try{
+            Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException("Booking does not exist"));
 
-    // check if room is available
-    private boolean isRoomAvailable(Booking bookingRequest, Booking existingBooking){
-        if(bookingRequest.getCheckInDate().isBefore(existingBooking.getCheckInDate())
-            && bookingRequest.getCheckOutDate().isBefore(existingBooking.getCheckInDate()))
-            return true;
+            booking.setStatus(BookingStatus.CANCELLED);
+            booking.setUpdatedAt(LocalDateTime.now());
 
-        if(bookingRequest.getCheckInDate().isAfter(existingBooking.getCheckOutDate())
-            && bookingRequest.getCheckOutDate().isAfter(existingBooking.getCheckOutDate()))
-            return true;
+            bookingRepository.save(booking);
 
-        else
-            return false;
+            response.setMessage("Booking of Id " + bookingId + " is marked as CANCELLED!");
+            response.setStatusCode(200);
+            response.setData(Utils.mapBookingEntityToBookingDTO(booking));
+        }
+        catch (AppException ap){
+            response.setStatusCode(404);
+            response.setData(null);// not found request
+            log.error(ap.getMessage());
+        }
+        catch (Exception e){
+            response.setStatusCode(500); // internal server error
+            log.error("Error occurred while canceling booking ");
+            response.setData(null);
+        }
+        return response;
     }
+
+    @Override
+    public Response<BookingValidationResult> validateBooking(CreateBookingRequest request, Room room, User user) {
+
+            Response<BookingValidationResult> response = new Response<>();
+
+            try {
+
+                // check dates
+                if (request.getCheckIn() == null || request.getCheckOut() == null) {
+
+                    response.setStatusCode(400);
+                    response.setMessage("Check-in and Check-out dates are required.");
+
+                    response.setData(
+                            BookingValidationResult.builder()
+                                    .valid(false)
+                                    .reason(BookingFailureReason.INVALID_CHECK_IN_DATE)
+                                    .message("Booking dates are required.")
+                                    .build());
+
+                    return response;
+                }
+
+                if (!request.getCheckOut().isAfter(request.getCheckIn())) {
+
+                    response.setStatusCode(400);
+                    response.setMessage("Check-out date must be after Check-in date.");
+
+                    response.setData(
+                            BookingValidationResult.builder()
+                                    .valid(false)
+                                    .reason(BookingFailureReason.CHECK_OUT_BEFORE_CHECK_IN)
+                                    .message("Invalid booking duration.")
+                                    .build());
+
+                    return response;
+                }
+
+                // room exists
+                if (room == null) {
+
+                    response.setStatusCode(404);
+
+                    response.setData(
+                            BookingValidationResult.builder()
+                                    .valid(false)
+                                    .reason(BookingFailureReason.ROOM_NOT_FOUND)
+                                    .message("Room not found.")
+                                    .build());
+
+                    return response;
+                }
+
+                // user exists
+                if (user == null) {
+
+                    response.setStatusCode(404);
+
+                    response.setData(
+                            BookingValidationResult.builder()
+                                    .valid(false)
+                                    .reason(BookingFailureReason.USER_NOT_FOUND)
+                                    .message("User not found.")
+                                    .build());
+
+                    return response;
+                }
+
+                // guest validation
+                if (request.getNumOfGuests() <= 0) {
+
+                    response.setStatusCode(400);
+
+                    response.setData(
+                            BookingValidationResult.builder()
+                                    .valid(false)
+                                    .reason(BookingFailureReason.INVALID_NUMBER_OF_GUESTS)
+                                    .message("At least one guest is required.")
+                                    .build());
+
+                    return response;
+                }
+
+                // capacity validation
+                if (room.getCapacity() < request.getNumOfGuests()) {
+
+                    response.setStatusCode(400);
+
+                    response.setData(
+                            BookingValidationResult.builder()
+                                    .valid(false)
+                                    .reason(BookingFailureReason.ROOM_CAPACITY_EXCEEDED)
+                                    .message("Room capacity exceeded.")
+                                    .build());
+
+                    return response;
+                }
+
+                // booking conflict
+                boolean conflict = bookingRepository.existsConflictingBooking(request.getRoomId(), request.getCheckIn(), request.getCheckOut());
+
+                if (conflict) {
+
+                    response.setStatusCode(409);
+
+                    response.setData(
+                            BookingValidationResult.builder()
+                                    .valid(false)
+                                    .reason(BookingFailureReason.ROOM_ALREADY_BOOKED)
+                                    .message("Room is already booked for the selected dates.")
+                                    .build());
+
+                    return response;
+                }
+
+                response.setStatusCode(200);
+                response.setMessage("Booking validation successful.");
+
+                response.setData(
+                        BookingValidationResult.builder()
+                                .valid(true)
+                                .reason(BookingFailureReason.NONE)
+                                .message("Booking is valid.")
+                                .build());
+
+            }
+            catch (Exception ex) {
+
+                response.setStatusCode(500);
+                response.setMessage(ex.getMessage());
+            }
+
+            return response;
+        }
+
+    @Override
+    public Response<Boolean> hasBookingConflict(
+            Long roomId,
+            LocalDate checkIn,
+            LocalDate checkOut) {
+
+        Response<Boolean> response = new Response<>();
+
+        try {
+
+            Room room = roomRepository.findById(roomId)
+                    .orElseThrow(() -> new AppException("Room not found"));
+
+            boolean conflict = bookingRepository.existsConflictingBooking(
+                    room.getId(),
+                    checkIn,
+                    checkOut);
+
+            response.setStatusCode(200);
+            response.setMessage(conflict
+                    ? "Room already booked."
+                    : "Room available.");
+
+            response.setData(conflict);
+
+        }
+        catch (AppException ex) {
+
+            response.setStatusCode(404);
+            response.setMessage(ex.getMessage());
+        }
+        catch (Exception ex) {
+
+            response.setStatusCode(500);
+            response.setMessage("Internal Server Error");
+        }
+
+        return response;
+    }
+
 }

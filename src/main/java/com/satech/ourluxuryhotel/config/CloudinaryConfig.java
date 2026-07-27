@@ -1,4 +1,4 @@
-package com.satech.ourluxuryhotel.configration;
+package com.satech.ourluxuryhotel.config;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;

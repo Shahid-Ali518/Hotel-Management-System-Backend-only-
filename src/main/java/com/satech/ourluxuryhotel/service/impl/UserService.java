@@ -1,9 +1,11 @@
 package com.satech.ourluxuryhotel.service.impl;
 
-import com.satech.ourluxuryhotel.dto.LoginRequest;
-import com.satech.ourluxuryhotel.dto.Response;
-import com.satech.ourluxuryhotel.dto.UserDTO;
+import com.satech.ourluxuryhotel.dto.request.CreateUserRequest;
+import com.satech.ourluxuryhotel.dto.request.LoginRequest;
+import com.satech.ourluxuryhotel.dto.response.Response;
+import com.satech.ourluxuryhotel.dto.response.UserDTO;
 import com.satech.ourluxuryhotel.entity.User;
+import com.satech.ourluxuryhotel.entity.UserRole;
 import com.satech.ourluxuryhotel.exception.AppException;
 import com.satech.ourluxuryhotel.repository.UserRepository;
 import com.satech.ourluxuryhotel.service.interfac.IUserService;
@@ -13,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -37,43 +38,51 @@ public class UserService implements IUserService {
 
 
     @Override
-    public Response register(User user) {
+    public Response<UserDTO> register(CreateUserRequest user) {
 
-        Response response = new Response();
+        Response<UserDTO> response = new Response<>();
 
         try{
 
-          if(user.getRole() == null || user.getRole().isBlank()){
-              user.setRole("USER");
-          }
 
           if(userRepository.existsByEmail(user.getEmail())){
               response.setMessage(user.getEmail() + " is Already Exists");
               throw new AppException(user.getEmail() + " is Already Exists");
           }
-          user.setPassword(passwordEncoder.encode(user.getPassword()));
-          User savedUser = userRepository.save(user);
-            UserDTO userDTO = Utils.mapUserEntityToUserDTO(savedUser);
+
+            User user1 = User.builder()
+                    .phoneNumber(user.getPhoneNumber())
+                    .name(user.getName())
+                    .email(user.getEmail())
+                    .password(passwordEncoder.encode(user.getPassword()))
+                    .role(UserRole.USER)
+                    .build();
+
+            User saved = userRepository.save(user1);
+
+            UserDTO userDTO = Utils.mapUserEntityToUserDTO(saved);
             response.setStatusCode(201); // created
-            response.setUser(userDTO);
-//            return response;
+            response.setData(userDTO);
 
         }
         catch (AppException ap){
             response.setStatusCode(400); // bad request
+            response.setData(null);
             log.error(ap.getMessage());
         }
         catch (Exception e){
           response.setStatusCode(500); // internal server error
           log.error("Error occurred while registering a user");
+            response.setData(null);
+
         }
         return response;
     }
 
     @Override
-    public Response login(LoginRequest loginRequest) {
+    public Response<UserDTO> login(LoginRequest loginRequest) {
 
-        Response response = new Response();
+        Response<UserDTO> response = new Response<>();
        try{
 
            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
@@ -81,7 +90,7 @@ public class UserService implements IUserService {
            var token = jwtUtils.createToken(user.getEmail());
            response.setToken(token);
            response.setStatusCode(200);
-           response.setRole(user.getRole());
+           response.setRole(String.valueOf(user.getRole()));
            response.setExpirationTime("7 Days");
            response.setMessage("Successful");
 
@@ -100,35 +109,37 @@ public class UserService implements IUserService {
     }
 
     @Override
-    public Response getAllUsers() {
+    public Response<List<UserDTO>> getAllUsers() {
 
-        Response response = new Response();
+        Response<List<UserDTO>>  response = new Response<>();
        try{
            List<User> users = userRepository.findAll();
            List<UserDTO> userDTOList = Utils.mapUserListEntityToUserListDTO(users);
-           response.setUserList(userDTOList);
+           response.setData(userDTOList);
            response.setMessage("Successful");
            response.setStatusCode(200);
+           response.setData(null);
 
        }
        catch (Exception e){
            response.setStatusCode(500); // internal server error
            log.error("Error occurred while getting all users");
+           response.setData(null);
+
        }
         return response;
     }
 
     @Override
-    public Response getUserBookingHistory(String userId) {
+    public Response<UserDTO> getUserBookingHistory(String userId) {
 
-        Response response = new Response();
-
-        UserDTO userDTO = new UserDTO();
+        Response<UserDTO>  response = new Response<>();
 
         try{
             var user = userRepository.findById(Long.valueOf(userId)).orElseThrow( ()-> new AppException("user does not exist"));
-            userDTO = Utils.mapUserEntityToUserDTOPlusBooking(user);
-            response.setUser(userDTO);
+            UserDTO userDTO = Utils.mapUserEntityToUserDTOPlusBooking(user);
+
+            response.setData(userDTO);
             response.setStatusCode(200);
             response.setMessage("Successful");
 
@@ -136,19 +147,20 @@ public class UserService implements IUserService {
         catch (Exception e){
             response.setStatusCode(500); // internal server error
             log.error("Error occurred while getting user booking history");
+            response.setData(null);
         }
         return response;
 
     }
 
     @Override
-    public Response getUserById(String userId) {
-        Response response = new Response();
+    public Response<UserDTO> getUserById(String userId) {
+        Response<UserDTO> response = new Response<>();
 
         try{
             var user = userRepository.findById(Long.valueOf(userId)).orElseThrow( ()-> new AppException("user does not exist"));
             UserDTO userDTO = Utils.mapUserEntityToUserDTO(user);
-            response.setUser(userDTO);
+            response.setData(userDTO);
             response.setStatusCode(200);
             response.setMessage("Successful");
 
@@ -156,10 +168,13 @@ public class UserService implements IUserService {
         catch (AppException ap){
             response.setStatusCode(404); // not found
             log.error(ap.getMessage());
+            response.setData(null);
         }
         catch (Exception e){
             response.setStatusCode(500); // internal server error
             log.error("Error occurred while getting user by id");
+            response.setData(null);
+
         }
         return response;
 
@@ -167,8 +182,8 @@ public class UserService implements IUserService {
 
 
     @Override
-    public Response deleteUser(String userId) {
-        Response response = new Response();
+    public Response<UserDTO> deleteUser(String userId) {
+        Response<UserDTO> response = new Response<>();
         try{
             var user = userRepository.findById(Long.valueOf(userId)).orElseThrow( ()-> new AppException("user does not exist"));
             userRepository.deleteById(Long.valueOf(userId));
@@ -179,22 +194,25 @@ public class UserService implements IUserService {
         catch (AppException ap){
             response.setStatusCode(404); // not found
             log.error(ap.getMessage());
+            response.setData(null);
         }
         catch (Exception e){
             response.setStatusCode(500); // internal server error
             log.error("Error occurred while deleting user by id");
+            response.setData(null);
         }
         return response;
     }
 
 
     @Override
-    public Response getMyInfo(String email) {
-        Response response = new Response();
+    public Response<UserDTO> getMyInfo(String email) {
+        Response<UserDTO> response = new Response<>();
         try{
             var user = userRepository.findByEmail(email).orElseThrow( ()-> new AppException("user does not exist"));
             UserDTO userDTO = Utils.mapUserEntityToUserDTOPlusBooking(user);
-            response.setUser(userDTO);
+
+            response.setData(userDTO);
             response.setStatusCode(200);
             response.setMessage("Successful");
 
