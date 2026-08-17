@@ -26,11 +26,9 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.getAllBookings());
     }
 
-    @PostMapping("/save-booking/{userId}/{roomId}")
+    @PostMapping("/save-booking")
     @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('USER')")
-    public ResponseEntity<Response<BookingDTO>> saveBooking(@PathVariable Long userId,
-                                                            @PathVariable Long roomId,
-                                                            @RequestBody CreateBookingRequest request){
+    public ResponseEntity<Response<BookingDTO>> saveBooking(@RequestBody CreateBookingRequest request){
 
         return ResponseEntity.ok(bookingService.createBooking(request));
     }

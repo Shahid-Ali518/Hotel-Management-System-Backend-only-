@@ -19,6 +19,8 @@ public class AiTools {
     private final RoomRecommendationService roomRecommendationService;
     private final DateResolutionService dateResolutionService;
 
+    private List<RoomDTO> recommendedRooms = List.of();
+
 
     @Tool(
             name = "recommendRooms",
@@ -78,12 +80,18 @@ public class AiTools {
                 resolvedCheckOut
         );
 
-        return roomRecommendationService.recommendRooms(
+        recommendedRooms =  roomRecommendationService.recommendRooms(
                 resolvedCheckIn,
                 resolvedCheckOut,
                 numberOfGuests,
                 roomType
         );
+
+        return recommendedRooms;
+    }
+
+    public List<RoomDTO> getRecommendedRooms() {
+        return recommendedRooms;
     }
 
 }
