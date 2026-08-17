@@ -35,7 +35,7 @@ public class RoomService implements IRoomService {
 
 
     @Override
-    public Response<RoomDTO> addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice) {
+    public Response<RoomDTO> addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice, Integer capacity, Double rating) {
 
         Response<RoomDTO> response = new Response<>();
 
@@ -48,15 +48,14 @@ public class RoomService implements IRoomService {
             String imageId =  photoInfo.get("public_id").toString();
 
 
-//            String imageName = photo.getOriginalFilename();
-//            byte[] imageData = photo.getBytes();
-
             room.setRoomType(roomType);
             room.setDescription(description);
             room.setRoomPrice(roomPrice);
             room.setImageUrl(imageUrl);
             room.setImageId(imageId);
-//            room.setImageData(imageData);
+            room.setCapacity(capacity);
+            room.setRating(rating);
+
             Room savedRoom = roomRepository.save(room);
             RoomDTO
                     roomDTO = Utils.mapRoomEntityToRoomDTO(savedRoom);

@@ -2,17 +2,22 @@ package com.satech.ourluxuryhotel.ai.service;
 
 import com.satech.ourluxuryhotel.ai.prompt.SystemPrompt;
 import com.satech.ourluxuryhotel.ai.tools.AiTools;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tomcat.util.net.openssl.ciphers.Authentication;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 
 @Service
 @Slf4j
 public class ChatToolService implements AiService {
 
     private final ChatClient chatClient;
+
+     private final String CONVERSATION_ID = "hotel-assistant-conversation";
+
+
 
     public ChatToolService(ChatClient.Builder chatClientBuilder, AiTools aiTools) {
         this.chatClient = chatClientBuilder
@@ -27,6 +32,7 @@ public class ChatToolService implements AiService {
 
         return chatClient
                 .prompt()
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID,  CONVERSATION_ID))
                 .user(input)
                 .call()
                 .content();

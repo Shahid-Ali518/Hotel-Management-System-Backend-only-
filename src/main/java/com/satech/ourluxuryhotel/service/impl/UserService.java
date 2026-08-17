@@ -55,7 +55,7 @@ public class UserService implements IUserService {
                     .name(user.getName())
                     .email(user.getEmail())
                     .password(passwordEncoder.encode(user.getPassword()))
-                    .role(UserRole.ADMIN)
+                    .role(UserRole.USER)
                     .build();
 
             User saved = userRepository.save(user1);

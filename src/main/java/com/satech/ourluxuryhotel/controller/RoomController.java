@@ -34,7 +34,9 @@ public class RoomController {
             @RequestParam(value = "photo", required = false) MultipartFile photo,
             @RequestParam(value = "roomType", required = false)String roomType,
             @RequestParam(value = "roomPrice", required = false)Double roomPrice,
-            @RequestParam(value = "roomDescription", required = false)String roomDescription
+            @RequestParam(value = "roomDescription", required = false)String roomDescription,
+            @RequestParam(value = "capacity", required = false) Integer capacity
+
             ){
 
         if(photo == null || photo.isEmpty() || roomType == null || roomType.isBlank() ||  roomPrice == null ){
@@ -44,7 +46,7 @@ public class RoomController {
             response.setData(null);
         }
 
-        Response<RoomDTO> response = roomService.addNewRoom(photo,roomType, roomDescription, roomPrice);
+        Response<RoomDTO> response = roomService.addNewRoom(photo,roomType, roomDescription, roomPrice, capacity, 4.2);
         return ResponseEntity.status(response.getStatusCode()).body(response);
     }
 

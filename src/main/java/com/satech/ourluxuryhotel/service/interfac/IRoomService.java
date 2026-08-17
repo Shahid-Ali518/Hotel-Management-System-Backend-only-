@@ -10,7 +10,7 @@ import java.util.List;
 public interface IRoomService {
 
 
-    Response<RoomDTO> addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice);
+    Response<RoomDTO> addNewRoom(MultipartFile photo, String roomType, String description, Double roomPrice, Integer capacity, Double rating);
 
     Response<List<RoomDTO>> getAllRooms();
 
